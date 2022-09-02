@@ -1,0 +1,216 @@
+---
+title: "RSiena experiment 1"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r,message=FALSE}
+tinytex::reinstall_tinytex()
+library(RSiena)
+library(igraph)
+```
+
+```{r}
+friend.data.w1<-s501
+friend.data.w2<-s502
+friend.data.w3<-s503
+drink<-s50a
+smoke<-s50s
+friendshipData <- array( c( friend.data.w1, friend.data.w2, friend.data.w3 ),
+           dim = c( 50, 50, 3 ) )
+friendship <- sienaDependent(friendshipData)
+friendship
+```
+
+I just created a 50 * 50 * 3 array composed of the 3 adjacency matrices(friend datas).
+
+Now, we use 1st wave of smoking as a constant actor covariate. Then, we define a variable actor covariate(alcohol) for drinking.Then,we put all the variables we've defined so far to create a dataset for analysis. 
+```{r}
+smoke1 <- coCovar( smoke[ , 1 ] )
+alcohol <- varCovar( drink )
+mydata <- sienaDataCreate( friendship, smoke1, alcohol )
+mydata
+#print01Report( mydata, modelname="s50")
+```
+Above contains some basic descriptives of the dataset. Also, I just created an output file s50.txt in your current working directory. Note that if an existing file has this name, it will be overwritten!
+
+---
+
+For the model specification, an effects object is needed, so I created one named myeff.
+```{r}
+myeff <- getEffects( mydata )
+#effectsDocumentation(myeff)
+```
+
+```{r}
+?includeEffects
+myeff <- includeEffects( myeff, transTrip, cycle3)
+myeff <- includeEffects( myeff, egoX, altX, simX, interaction1 = "alcohol" )
+#cuz we used all of alcohol when creating mydata
+
+#>   effectName         include fix   test  initialValue parm
+#> 1 alcohol alter      TRUE    FALSE FALSE          0   0   
+#> 2 alcohol ego        TRUE    FALSE FALSE          0   0   
+#> 3 alcohol similarity TRUE    FALSE FALSE          0   0
+myeff <- includeEffects( myeff, simX, interaction1 = "smoke1" ) 
+#cuz we used one constant covariate for smoke previously when making mydata
+
+#>   effectName        include fix   test  initialValue parm
+#> 1 smoke1 similarity TRUE    FALSE FALSE          0   0
+#myeff
+```
+
+transTrip
+- exploring the effect of the existence of ties i --> h and h --> j on the formation of tie i --> j.
+
+cycle3
+-number of three-cycles: If there is a connection between i,j,h such that there is a tie between  x_ij,x_jh,x_hi, then there is one three-cycle.
+
+(egoX, altX, simX, interaction1 = "alcohol")
+(simX, interaction1 = "smoke1")
+
+*egoX,altX: For centered actor covariates, function sienaGroupCreate centers the original values
+again, now around the overall mean. This allows the use of centered actor covariates that
+are constant within groups. The egoX effect of a centered covariate will be the sender
+effect of the original variable with grand-mean centering. For the altX effect the centering
+makes no difference
+*simX: For homophily parameters on important attributes expressed by the simX effect (which is
+standardized).
+#Homophily: the tendency for people to seek out or be attracted to those who are similar to themselves.
+
+#Q: I am still not sure about importance of altX. Also, what would be centered covariate in this case? 
+
+I now will create an object with algorithm settings. To ensure it produces same estimation result consistently, I used seed parameter. 
+```{r}
+?sienaAlgorithmCreate
+myalgorithm <- sienaAlgorithmCreate( projname = 's50',seed=435123  )
+```
+
+```{r}
+ans <- siena07( myalgorithm, data = mydata, effects = myeff)
+ans
+```
+For checking convergence, I looked at the overall maximum convergence ratio. As it is less than 0.25, convergence is good. Otherwise, I would've estiamted once more, using the result obtained as the previous ans from which estimation continues.
+ex. siena07( myalgorithm, data = mydata, effects = myeff, prevAns=ans)   
+
+---
+
+Networks and Behavior study
+
+For this analysis, we redefine the role of alcohol drinking as a dependent behaviour variable via 'type' parameter.
+```{r}
+drinking <- sienaDependent( drink, type = "behavior" )
+NBdata <- sienaDataCreate( friendship, smoke1, drinking )
+#NBdata
+```
+
+Now, we create a variable named NBeff, which represents bundle of effects.
+
+transTrip (previously explained)
+
+transRecTrip :transitive reciprocated triplets effect (transRecTrip), which can be regarded as an interaction between the transitive triplets effect and reciprocity, where the reciprocated tie is the tie i <--> j that closes
+the two-path i->h->j.
+
+egoX (previously explained)
+
+egoSqX: covariate squared - ego or squared covariate-related activity (egoSqX), defined by i out-degree weighted by his covariate value.
+
+altX (previously explained)
+altSqX:  covariate squared - alter or squared covariate-related popularity (altSqX), defined by the sum of the squared centered covariate over all actors to whom i has a tie, (not included if the variable has range less than 2)
+
+diffSqX: covariate-squared-difference or covariate-related squared difference (diffSqX), defined by the squared alter-minus-ego difference of the covariate over all actors to whom i has a tie.
+
+simX (previously explained)
+
+avAlt: average alter effect (avAlt), defined by i’s behavior multiplied by the average behavior of his alters (a kind of ego-alter behavior covariance),
+
+#Q or comment: Personally, I am just testing out different effects; I am not sure whether all of them are relevant or helpful.
+
+```{r}
+NBeff <- getEffects( NBdata )
+effectsDocumentation(NBeff)
+NBeff <- includeEffects( NBeff, transTrip, transRecTrip )
+#>   effectName                  include fix   test  initialValue parm
+#> 1 transitive triplets         TRUE    FALSE FALSE          0   0   
+#> 2 transitive recipr. triplets TRUE    FALSE FALSE          0   0
+NBeff <- includeEffects( NBeff, egoX, egoSqX, altX, altSqX, diffSqX,
+                         interaction1 = "drinking" )
+#>   effectName             include fix   test  initialValue parm
+#> 1 drinking alter         TRUE    FALSE FALSE          0   0   
+#> 2 drinking squared alter TRUE    FALSE FALSE          0   0   
+#> 3 drinking ego           TRUE    FALSE FALSE          0   0   
+#> 4 drinking squared ego   TRUE    FALSE FALSE          0   0   
+#> 5 drinking diff. squared TRUE    FALSE FALSE          0   0
+NBeff <- includeEffects( NBeff, egoX, altX, simX, interaction1 = "smoke1" )
+#>   effectName        include fix   test  initialValue parm
+#> 1 smoke1 alter      TRUE    FALSE FALSE          0   0   
+#> 2 smoke1 ego        TRUE    FALSE FALSE          0   0   
+#> 3 smoke1 similarity TRUE    FALSE FALSE          0   0
+NBeff <- includeEffects( NBeff, avAlt, name="drinking",
+                         interaction1 = "friendship" )
+#We now have to mention the name of the dependent behavior variable; it did not need to be mentioned before, because the default name is the first in the data set, which is friendship.
+#NBeff
+```
+
+```{r}
+myalgorithm1 <- sienaAlgorithmCreate( projname = 's50_NB',seed=42)
+NBans <- siena07( myalgorithm1, data = NBdata, effects = NBeff)
+NBans
+```
+
+There is no need to do this process again since overall maximum convergence ratio is less than 0.25, but I am repeating it to see the effect. As one would expect, overall maximum convergence ratio decreased. 
+
+#Q: What is the consequence/risk of repeating this process when the ratio is already less than 0.25?
+
+```{r}
+NBans1 <- siena07( myalgorithm1, data = NBdata, effects = NBeff,prevAns=NBans)
+NBans1
+```
+
+Code chunk below produces a nicer listing of the results. 
+
+```{r}
+#siena.table(NBans, type="html", sig=TRUE)
+```
+
+---Feedback/learning:
+egoX= If I drink more alcohol, am I more likely to send out more friendship ties
+Alt:alter . Ppl drinking, are they more likely to receive ties? 
+Smok1 and alcohol would be centred covariates 
+
+Method of moment to estimate ratio. Finding parameters to where expected value=observed value. 
+Cannot find closed form. 
+Expression of difference between expected value and observed value 
+Parameter estimates don’t change much even if you repeat after getting less than 0.25 so not worth. 
+
+
+#Q or comment: Personally, I am just testing out different effects; I am not sure whether all of them are relevant or helpful.
+Ans: look at data +RSiena manual for essential ones
+
+Convergence ratio Smaller than 0.1, repeat algorithm 
+
+rate: on average, actors in network get 6.31 opportunities to make changes 
+eval: if smoke, more likely to be selected as a friend if convergence t-ratio<0.05
+
+eval drinking ego: if drink, more likely to send friends. 
+#send>make as it clarifies the direction. 
+
+—
+Co-evolution of network by prof. 
+
+Look at method papers by ppl who developed RSiena
+
+—
+Away from pgh a lot this sem. Working remote. 
+Next sem meet in person 
+
+-read paper
+-refer to goodness of fit
+-refer to her code 

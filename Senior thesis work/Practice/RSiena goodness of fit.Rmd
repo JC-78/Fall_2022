@@ -1,0 +1,331 @@
+---
+title: "RSiena goodness of fit"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r cars}
+getwd()
+```
+```{r}
+download.file("https://www.stats.ox.ac.uk/~snijders/siena/vdBunt_data.zip",
+                                                        destfile='vdb.zip')
+unzip('vdb.zip')
+```
+
+```{r}
+vdb.w0 <- as.matrix(read.table("VRND32T0.DAT"))
+vdb.w1 <- as.matrix(read.table("VRND32T1.DAT"))
+vdb.w2 <- as.matrix(read.table("VRND32T2.DAT"))
+vdb.w3 <- as.matrix(read.table("VRND32T3.DAT"))
+vdb.w4 <- as.matrix(read.table("VRND32T4.DAT"))
+vdb.w5 <- as.matrix(read.table("VRND32T5.DAT"))
+vdb.w6 <- as.matrix(read.table("VRND32T6.DAT"))
+vdb.attr <- as.matrix(read.table("VARS.DAT"))
+```
+
+```{r}
+# Take account of missing data codes 6 and 9:
+vdb.w0[vdb.w0 %in% c(6,9)] <- NA
+vdb.w1[vdb.w1 %in% c(6,9)] <- NA
+vdb.w2[vdb.w2 %in% c(6,9)] <- NA
+vdb.w3[vdb.w3 %in% c(6,9)] <- NA
+vdb.w4[vdb.w4 %in% c(6,9)] <- NA
+vdb.w5[vdb.w5 %in% c(6,9)] <- NA
+vdb.w6[vdb.w6 %in% c(6,9)] <- NA
+```
+
+```{r}
+# Recode 4 (acquaintance) and 5 (difficult) to no tie
+vdb.w0[vdb.w0 %in% c(4,5)] <- 0
+vdb.w1[vdb.w1 %in% c(4,5)] <- 0
+vdb.w2[vdb.w2 %in% c(4,5)] <- 0
+vdb.w3[vdb.w3 %in% c(4,5)] <- 0
+vdb.w4[vdb.w4 %in% c(4,5)] <- 0
+vdb.w5[vdb.w5 %in% c(4,5)] <- 0
+vdb.w6[vdb.w6 %in% c(4,5)] <- 0
+```
+
+```{r}
+# Use the "friendly relation" relation by recoding:
+vdb.w0[vdb.w0 %in% c(1,2,3)] <- 1
+vdb.w1[vdb.w1 %in% c(1,2,3)] <- 1
+vdb.w2[vdb.w2 %in% c(1,2,3)] <- 1
+vdb.w3[vdb.w3 %in% c(1,2,3)] <- 1
+vdb.w4[vdb.w4 %in% c(1,2,3)] <- 1
+vdb.w5[vdb.w5 %in% c(1,2,3)] <- 1
+vdb.w6[vdb.w6 %in% c(1,2,3)] <- 1
+```
+
+```{r}
+library(RSiena)
+# Attributes:
+sex     <- coCovar(vdb.attr[,1])
+program <- coCovar(vdb.attr[,2])
+smoke   <- coCovar(vdb.attr[,3])
+```
+
+```{r}
+# waves 2-3-4
+friends234 <- sienaDependent(array(c(vdb.w2,vdb.w3,vdb.w4),
+                            dim=c(32, 32, 3)), allowOnly=FALSE)
+vdb.data234 <- sienaDataCreate(friends234,sex,program,smoke)
+```
+
+```{r}
+# Algorithm creation:
+vdb.algo <- sienaAlgorithmCreate(projname = 'vdb_gof234', seed=123456)
+```
+
+```{r}
+?'sienaGOF-auxiliary'
+#Auxiliary functions for goodness of fit assessment by sienaGOF
+#The auxiliary functions are, first, some functions of networks or behavior (i.e., statistics) for which the simulated values for the fitted model are compared to the observed value
+```
+
+```{r}
+#geodesic distance between two vertices is the length in terms of the number of edges of the shortest path between the vertices.
+
+# GeodesicDistribution calculates the distribution of non-directed
+   # geodesic distances
+   # The default for \code{levls} reflects the usual phenomenon
+   # that geodesic distances larger than 5
+   # do not differ appreciably with respect to interpretation.
+   # Note that the levels of the result are named;
+   # these names are used in the \code{plot} method.
+
+GeodesicDistribution <- function (i, data, sims, period, groupName,
+   varName, levls=c(1:5,Inf), cumulative=TRUE, ...) {
+     x <- networkExtraction(i, data, sims, period, groupName, varName)
+     require(sna)
+     a <- sna::geodist(symmetrize(x))$gdist
+     if (cumulative)
+     {
+       gdi <- sapply(levls, function(i){ sum(a<=i) })
+     }
+     else
+     {
+       gdi <- sapply(levls, function(i){ sum(a==i) })
+     }
+     names(gdi) <- as.character(levls)
+     gdi
+}
+```
+
+```{r}
+# The following function is taken from the help page for sienaTest
+
+testall <- function(ans){
+    for (i in which(ans$test))
+      {
+    sct <- score.Test(ans,i)
+    cat(ans$requestedEffects$effectName[i], '\n')
+    print(sct)
+    }
+    invisible(score.Test(ans))
+}
+```
+
+Now,let's applying sienaGOF to the van de Bunt data for waves 2, 3, 4.
+```{r}
+# Define a model to decide between three specifications of transitivity.
+# This forward model selection is not recommended in general;
+# it is used here only to demonstrate the use of the sienaGOF function.
+
+vdb.eff234 <- getEffects(vdb.data234)
+vdb.eff234 <- includeEffects(vdb.eff234, transTrip, transTies, gwespFF,
+                    test=TRUE, fix=TRUE)
+vdb.eff234
+```
+
+```{r}
+(ans0 <- siena07(vdb.algo, data=vdb.data234, effects=vdb.eff234,
+                                                    returnDeps=TRUE))
+```
+
+The overall maximum convergence ratio is less than 0.25, so we don't repeat the algorithm. 
+
+```{r}
+testall(ans0)
+```
+
+```{r}
+(gofi0 <- sienaGOF(ans0, IndegreeDistribution, verbose=TRUE, join=TRUE,
+     varName="friends234"))
+```
+
+Q: Not sure how to interpret Monte Carlo p-value and calculated joint MHD
+Q: Does verbose=True print all the messages
+
+Q: what does join=True do? 
+Ans: Note that join=FALSE is used to get separate calculations for the two periods; join=TRUE will calculate the sum over the periods.
+
+```{r}
+(gofo0 <- sienaGOF(ans0, OutdegreeDistribution, verbose=TRUE, join=TRUE,
+     levls=c(0:10,15,20),varName="friends234"))
+```
+
+```{r}
+(gof0.tc <- sienaGOF(ans0, TriadCensus, verbose=TRUE, join=TRUE,
+     varName="friends234"))
+(gof0.gd <- sienaGOF(ans0, GeodesicDistribution, cumulative=FALSE,
+     verbose=TRUE, join=TRUE, varName="friends234"))
+```
+
+ Fit for indegree distribution is OK as p-value is greater than 0.05;for the other three auxiliary statistics, it is not as the p-value <0.05.
+ 
+```{r}
+plot(gof0.gd)
+```
+ #How to interpret this diagram? Similar question for the paper I read.
+ 
+```{r}
+# The model simulates too many geodesic distances 2, and too few distances 5
+descriptives.sienaGOF(gof0.gd)
+```
+ 
+ Q: Do the column numbers represent geodesic distances? If so, how can Inf be the case?
+ 
+```{r}
+# What about distances 6 or 7?
+(gof0.gd7 <- sienaGOF(ans0, GeodesicDistribution, cumulative=FALSE,
+            levls=c(1:7,Inf), verbose=TRUE, join=TRUE, varName="friends234"))
+descriptives.sienaGOF(gof0.gd7)
+```
+Q: What does cumulative=False do?
+Q: From the website, these comments below are provided
+# No distances 6 are observed, and some are simulated (depending on the random simulations)
+# No distances 7 are observed, and none are simulated:
+ In this case, I feel no distances 7 are observed, whereas distances 6 are observed. Check if this right? Is this due to the matter of seed and R version? I feel my belief is evident in code output below but still double check.
+ 
+```{r}
+descriptives.sienaGOF(gof0.gd7, showAll=TRUE)
+```
+ 
+```{r}
+# The summaries give the approximate value of the Mahalanobis distance,
+# if the tested & fixed effects would be added:
+summary(gof0.tc)
+summary(gof0.gd)
+```
+ Q: Interpreting one-step values
+ Q: what do tc in gof0.tc and gd in gof0.gd stand for? 
+ A:Triad census and geodesicDistribution
+ 
+The summaries for gof0.tc and gof0.gd suggest that the model should be extended by gwespFF or transTrip. We go for gwespFF.
+Q:How did we decide it should be extended by either and why did we go with gwespFF?
+
+```{r}
+vdb.eff234.a <- includeEffects(vdb.eff234, gwespFF)
+(ansa <- siena07(vdb.algo, data=vdb.data234, effects=vdb.eff234.a,
+                prevAns=ans0, returnDeps=TRUE))
+testall(ansa)
+# The two other transitivity effects now have become non-significant.
+```
+Q: How to use the result of testall? Since the p-values are all greater than 0.05, do we assume transitive triplets and ties are not statistically significant in the evolution of this network?
+
+```{r}
+(gofia <- sienaGOF(ansa, IndegreeDistribution, verbose=TRUE, join=TRUE,
+     varName="friends234"))
+(gofoa <- sienaGOF(ansa, OutdegreeDistribution, verbose=TRUE, join=TRUE,
+     levls=c(0:10,15,20),varName="friends234"))
+(gofa.tc <- sienaGOF(ansa, TriadCensus, verbose=TRUE, join=TRUE,
+     varName="friends234"))
+(gofa.gd <- sienaGOF(ansa, GeodesicDistribution, cumulative=FALSE,
+     verbose=TRUE, join=TRUE, varName="friends234"))
+```
+
+Now the fit is OK for all four auxiliary statistics.
+```{r}
+plot(gofoa)
+```
+#Q: Same interpretation issue as before
+
+To get a plot for the triad census, the values should be centered and scaled,because they differ wildly
+
+```{r}
+plot(gofa.tc)
+plot(gofa.tc, center=TRUE, scale=TRUE)
+```
+Q: Are there other effects that need to be centered and scaled? Why does tc need this preprocessing?
+
+```{r}
+# Is the model homogeneous for the two periods?
+sienaTimeTest(ansa)
+
+```
+Q: Check if my interpretation is correct
+Answer is yes because the p-value for joint significance test of time heterogeneity was greater than 0.05. This means the model didn't change too much between the two periods
+
+-----------
+
+We want to get an impression of the distribution of the number of components. The components are computed by the function geo.desc through the package igraph.
+
+igraphNetworkExtraction extracts simulated and observed networks from the results of a siena07 run.
+It returns the network as an edge list of class "graph" according to the igraph package.
+
+Q: I am not sure about the interpretation of explannation provided
+"Ties for ordered pairs with a missing value for wave=period or period+1 are zeroed;
+note that this also is done in RSiena for calculation of target statistics.
+However, changing structurally fixed values are not taken into account."
+
+```{r}
+igraphNetworkExtraction <- function(i, data, sims, period, groupName, varName) {
+  require(igraph)
+  dimsOfDepVar<- attr(data[[groupName]]$depvars[[varName]], "netdims")
+  missings <- is.na(data[[groupName]]$depvars[[varName]][,,period]) |
+    is.na(data[[groupName]]$depvars[[varName]][,,period+1])
+  if (is.null(i)) {
+    # sienaGOF wants the observation:
+    original <- data[[groupName]]$depvars[[varName]][,,period+1]
+    original[missings] <- 0
+    returnValue <- graph.adjacency(original)
+  }
+  else
+  {
+    missings <- graph.adjacency(missings)
+    #sienaGOF wants the i-th simulation:
+    returnValue <- graph.difference(
+      graph.empty(dimsOfDepVar) +
+            edges(t(sims[[i]][[groupName]][[varName]][[period]][,1:2])),
+      missings)
+  }
+  returnValue
+}
+```
+
+Now, let's calculate the size of the largest component,the number of components, and the diameter.
+It uses igraph to calculate the components.
+
+```{r}
+geo.desc <- function(i, data, sims, period, groupName, varName){
+    require(igraph)
+    ai <- igraphNetworkExtraction(i, data, sims, period, groupName, varName)
+    n  <- vcount(ai)  # number of nodes
+    # size largest weak component
+    componentList <- clusters(ai,mode="weak")
+    comp1 <- max(componentList$csize)
+    # number of components
+    ncomp <- componentList$no
+    # diameter
+    diam <- diameter(as.undirected(ai), unconnected=TRUE)
+    descr <- c(comp1, ncomp, diam)
+    names(descr) <- c("comp1", "ncomp", "diam")
+    descr
+}
+```
+
+```{r}
+# Note that join=FALSE is used here, to get separate calculations
+# for the two periods; join=TRUE will calculate the sum over the periods.
+(gofa.geo <- sienaGOF(ansa, geo.desc, verbose=TRUE, join=FALSE,
+     varName="friends234"))
+descriptives.sienaGOF(gofa.geo, period=1)
+descriptives.sienaGOF(gofa.geo, period=2)
+```
+
