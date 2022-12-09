@@ -1,0 +1,420 @@
+---
+title: "meow"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(igraph)
+library(RSiena)
+library(ggplot2)
+library(network)
+library(intergraph)
+library(sna)
+```
+
+```{r}
+vdb.CoreGossip <- load("/Users/joonghochoi/Desktop/Senior thesis work/Data-Josh/CoreGossip/14100Nynke.RData")
+```
+
+
+```{r}
+gearyC<-function(res=as.matrix(wellbeing[,2]),meow=friendship[1]){
+  #input: data frame of dependent variables
+  item<-is.na(res)
+  N<-length(rowSums(item))-sum(rowSums(item)>0) #Number of people with no observed values 
+  indexes<-c(which(rowSums(item)==0))  #Indexes of ppl with observed values in wellbeing
+  Len<-length(indexes)
+  #print("length of indexes")
+  #print(Len)
+  w<-matrix(1:Len**2,nrow=Len,ncol=Len)
+  df<-as.data.frame(meow)
+  #print("df is ")
+  (df)
+  #Updating w, which only consists of ppl who filled out wellbeing. 1 if friend, 0 if not. NA if no info.
+  for (ii in 1:Len)
+  {
+    for (jj in 1:Len)
+    {
+        if (ii==jj)
+        {
+          w[ii,jj]=0
+        }
+      else
+      {
+        i=indexes[ii]
+        j=indexes[jj]
+        #print("i is ")
+        #print(i)
+        #print("j is ")
+        #print(j)
+        #print(df[i,j])
+        
+        
+        
+        
+        #browser()
+        if (df[i,j]==10)
+        {
+          w[ii,jj]=NA
+        }
+        if (df[i,j]>4)
+        {
+          w[ii,jj]=1
+        }
+        else
+        {
+          w[ii,jj]=0
+        }
+        
+      }
+      
+    }
+  }
+  W<-sum(w)
+  (x<-as.data.frame(res))
+  numerator_s=0
+  denominator_s=0
+  x_mean=sum(x,na.rm=TRUE)/(dim(x)[1]-sum(rowSums(is.na(x)))) #correct. Checked manually 
+  for (ii in 1:Len){
+    x_i<-x[indexes[ii],1]
+    for (jj in 1:Len){
+      x_j<-x[indexes[jj],1]
+      value=w[ii,jj]*(x_i-x_j)**2
+      #print(value)
+      numerator_s=numerator_s+value
+    }
+    denominator_s=denominator_s+(x_i-x_mean)**2
+  }
+  #print("numerator_s")
+  #print(numerator_s)
+  #print("denominator_s")
+  #print(denominator_s)
+  answer<-((N-1)*numerator_s)/ (2*W*denominator_s)
+  answer
+}
+
+```
+
+
+```{r}
+#(a<-as.matrix(c(4,35,25,1))) example from online
+(a<-as.matrix(c(2,3,4,5))) #my own example
+
+(b<-matrix(c(0,5,5,0,5,0,0,5,5,0,0,5,0,5,5,0),nrow=4,4))
+(c<-as.data.frame(b))
+gearyC(a,b) 
+```
+```{r}
+#(a<-as.matrix(c(4,35,25,1))) example from online
+(a<-as.matrix(c(2,3,4,5))) #my own example.   Returns matrix,array
+item<-list(0,5,5,0,5,0,0,5,5,0,0,5,0,5,5,0)
+(b<-matrix(item,nrow=4,4))
+(c<-as.data.frame(b))
+gearyC(a,b)   #should return 0.75
+```
+
+
+```{r}
+#nacf function accepts two inputs: one network and one numeric vector so conversion needed
+(a<-as.matrix(c(2,3,4,5))) #my own example.   Returns matrix,array
+meow<-c(a)
+item<-list(0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0)
+b<-matrix(item,nrow=4,4)
+c<-as.data.frame(b)
+k<-as.matrix(c)
+#k<-as.matrix(b)
+
+k1<-graph_from_adjacency_matrix(k)
+k1_1<-asNetwork(k1) #
+class(k1_1)
+
+```
+
+```{r}
+nacf(k1_1,y=meow,type="geary",mode="digraph")[2]
+```
+
+so we know my function works with no missing values.
+---
+
+Two code chunks below show nacf doesn't work with na values, whereas mine does. It omits the NA and returns correct Geary C value (proven by manual calculation)
+```{r}
+#(a<-as.matrix(c(4,35,25,1))) example from online
+(a<-as.matrix(c(2,3,4,NA))) #my own example.   Returns matrix,array
+item<-list(0,5,5,0,5,0,0,5,5,0,0,5,0,5,5,0)
+(b<-matrix(item,nrow=4,4))
+(c<-as.data.frame(b))
+gearyC(a,b)   
+```
+
+```{r}
+#nacf function accepts two inputs: one network and one numeric vector so conversion needed
+(a<-as.matrix(c(2,3,4,NA))) #my own example.   Returns matrix,array
+meow<-c(a)
+item<-list(0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0)
+b<-matrix(item,nrow=4,4)
+c<-as.data.frame(b)
+k<-as.matrix(c)
+#k<-as.matrix(b)
+
+k1<-graph_from_adjacency_matrix(k)
+k1_1<-asNetwork(k1) #
+class(k1_1)
+nacf(k1_1,y=meow,type="geary",mode="digraph")[2]
+```
+
+------
+
+Now, what if I want to do in mean imputation? 
+
+
+```{r}
+gearyC1<-function(res=wellbeing[,2],meow=f1_1){
+  meow1<-mean(res,na.rm=TRUE)
+  res[is.na(res)]<-meow1
+  #input: data frame of dependent variables
+  res=as.matrix(res)
+  
+  item<-is.na(res)
+  N<-length(rowSums(item))-sum(rowSums(item)>0) #Number of people with no observed values 
+  indexes<-c(which(rowSums(item)==0))  #Indexes of ppl with observed values in wellbeing
+  Len<-length(indexes)
+  w<-matrix(1:Len**2,nrow=Len,ncol=Len)
+  df<-as.data.frame(meow)
+  #print(Len)
+  #Updating w, which only consists of ppl who filled out wellbeing. 1 if friend, 0 if not. NA if no info.
+  for (ii in 1:Len)
+  {
+    for (jj in 1:Len)
+    {
+        if (ii==jj)
+        {
+          w[ii,jj]=0
+        }
+      else
+      {
+        i=indexes[ii]
+        j=indexes[jj]
+        #print("i is ")
+        #print(i)
+        #print("j is ")
+        #print(j)
+        #print(df[i,j])
+        #browser()
+        if (df[i,j]==10)
+        {
+          w[ii,jj]=NA
+        }
+        if (df[i,j]>4)
+        {
+          w[ii,jj]=1
+        }
+        else
+        {
+          w[ii,jj]=0
+        }
+        
+      }
+      
+    }
+  }
+  W<-sum(w)
+  (x<-as.data.frame(res))
+  numerator_s=0
+  denominator_s=0
+  x_mean=sum(x,na.rm=TRUE)/(dim(x)[1]-sum(rowSums(is.na(x)))) #correct. Checked manually 
+  for (ii in 1:Len){
+    x_i<-x[indexes[ii],1]
+    for (jj in 1:Len){
+      x_j<-x[indexes[jj],1]
+      value=w[ii,jj]*(x_i-x_j)**2
+      #print(value)
+      numerator_s=numerator_s+value
+    }
+    denominator_s=denominator_s+(x_i-x_mean)**2
+  }
+  #print("numerator_s")
+  #print(numerator_s)
+  #print("denominator_s")
+  #print(denominator_s)
+  answer<-((N-1)*numerator_s)/ (2*W*denominator_s)
+  answer
+}
+
+```
+
+```{r}
+(a<-as.matrix(c(2,3,4,3))) #my own example.   Returns matrix,array
+item<-list(0,5,5,0,5,0,0,5,5,0,0,5,0,5,5,0)
+(b<-matrix(item,nrow=4,4))
+(c<-as.data.frame(b))
+gearyC1(a,b)   #should return 1.125
+```
+```{r}
+#nacf function accepts two inputs: one network and one numeric vector so conversion needed
+(a<-as.matrix(c(2,3,4,3))) #my own example.   Returns matrix,array
+meow<-c(a)
+item<-list(0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0)
+b<-matrix(item,nrow=4,4)
+c<-as.data.frame(b)
+k<-as.matrix(c)
+#k<-as.matrix(b)
+
+k1<-graph_from_adjacency_matrix(k)
+k1_1<-asNetwork(k1) #
+class(k1_1)
+nacf(k1_1,y=meow,type="geary",mode="digraph")[2]
+```
+
+```{r}
+(a<-as.matrix(c(2,3,4,NA))) #my own example.   Returns matrix,array
+item<-list(0,5,5,0,5,0,0,5,5,0,0,5,0,5,5,0)
+(b<-matrix(item,nrow=4,4))
+(c<-as.data.frame(b))
+gearyC1(a,b)   #should return 1.125
+```
+#Now testing with the wellbeing data
+
+```{r}
+res<-friendshipPreProcess(friendship)
+for (ii in 1:6){
+  f1<-as.matrix(as.data.frame(res[1])) #wave 1
+  f2<-as.matrix(as.data.frame(res[2]))
+  f3<-as.matrix(as.data.frame(res[3]))
+  f4<-as.matrix(as.data.frame(res[4]))
+  f5<-as.matrix(as.data.frame(res[5]))
+  f6<-as.matrix(as.data.frame(res[6]))
+}
+
+#Use this chunk if don't want to make assumption that loners or ppl who didn't answer survey will remain the same
+IdentifyLoners <- function (mat){
+  i <- (colSums(f1, na.rm=T) != 0) # T if colSum is not 0, F otherwise
+  j <- (rowSums(f1, na.rm=T) != 0) # T if colSum is not 0, F otherwise
+  m<-c(i|j)
+  m1<-sapply(m, as.numeric)
+  m2<- which(m1 %in%0 )
+  m2
+}
+L1<-IdentifyLoners(f1)
+L2<-IdentifyLoners(f2)
+L3<-IdentifyLoners(f3)
+L4<-IdentifyLoners(f4)
+L5<-IdentifyLoners(f5)
+L6<-IdentifyLoners(f6)
+m2<-Reduce(intersect, list(L1,L2,L3))
+f1_1<-f1[-m2,-m2]
+f2_1<-f2[-m2,-m2]
+f3_1<-f3[-m2,-m2]
+f4_1<-f4[-m2,-m2]
+f5_1<-f5[-m2,-m2]
+f6_1<-f6[-m2,-m2]
+(m2)
+```
+
+```{r}
+k78<-wellbeing[,2]
+k78<-k78[-m2]
+length(k78)
+dim(f1_1)
+class(a)
+class(b)
+c<-as.matrix(k78)
+class(c)
+class(f1_1)
+gearyC1(res=as.matrix(k78),meow=f1_1)
+```
+
+#removed people who are loners in all six waves from wellbeing. Graph is made from friend network, whic already went through loners removal. Then did mean imputation. Like in the original file
+
+It's cuz f1_1 already got binarized
+
+So now I have a geary C function that can compute with binarized friend network
+```{r}
+gearyC2<-function(res=wellbeing[,2],meow=f1_1){
+  meow1<-mean(res,na.rm=TRUE)
+  res[is.na(res)]<-meow1
+  #input: data frame of dependent variables
+  res=as.matrix(res)
+  
+  item<-is.na(res)
+  N<-length(rowSums(item))-sum(rowSums(item)>0) #Number of people with no observed values 
+  indexes<-c(which(rowSums(item)==0))  #Indexes of ppl with observed values in wellbeing
+  Len<-length(indexes)
+  w<-matrix(1:Len**2,nrow=Len,ncol=Len)
+  df<-as.data.frame(meow)
+  #print(Len)
+  #Updating w, which only consists of ppl who filled out wellbeing. 1 if friend, 0 if not. NA if no info.
+  for (ii in 1:Len)
+  {
+    for (jj in 1:Len)
+    {
+        if (ii==jj)
+        {
+          w[ii,jj]=0
+        }
+      else
+      {
+        i=indexes[ii]
+        j=indexes[jj]
+        #print("i is ")
+        #print(i)
+        #print("j is ")
+        #print(j)
+        #print(df[i,j])
+        #browser()
+        if (df[i,j]==1)
+        {
+          w[ii,jj]=1
+        }
+        else
+        {
+          w[ii,jj]=0
+        }
+        
+      }
+      
+    }
+  }
+  W<-sum(w)
+  (x<-as.data.frame(res))
+  numerator_s=0
+  denominator_s=0
+  x_mean=sum(x,na.rm=TRUE)/(dim(x)[1]-sum(rowSums(is.na(x)))) #correct. Checked manually 
+  for (ii in 1:Len){
+    x_i<-x[indexes[ii],1]
+    for (jj in 1:Len){
+      x_j<-x[indexes[jj],1]
+      value=w[ii,jj]*(x_i-x_j)**2
+      #print(value)
+      numerator_s=numerator_s+value
+    }
+    denominator_s=denominator_s+(x_i-x_mean)**2
+  }
+  #print("numerator_s")
+  #print(numerator_s)
+  #print("denominator_s")
+  #print(denominator_s)
+  answer<-((N-1)*numerator_s)/ (2*W*denominator_s)
+  answer
+}
+
+```
+
+```{r}
+k78<-wellbeing[,2]
+k78<-k78[-m2]
+length(k78)
+dim(f1_1)
+class(a)
+class(b)
+c<-as.matrix(k78)
+class(c)
+class(f1_1)
+gearyC2(res=as.matrix(k78),meow=f1_1)
+```

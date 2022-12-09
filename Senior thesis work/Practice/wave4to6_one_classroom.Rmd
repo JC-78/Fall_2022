@@ -1,0 +1,401 @@
+---
+title: "New Data Check"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(igraph)
+library(RSiena)
+library(ggplot2)
+library(network)
+library(intergraph)
+library(sna)
+```
+
+```{r}
+data<-load("/Users/joonghochoi/Desktop/Senior thesis work/Data-Josh/primary_school_subdata_english_send/student_reduceddata_english.RData")
+data
+#labels show what variables mean
+```
+
+
+```{r}
+student_dataset
+```
+
+-----For class 15100
+
+```{r}
+vdb.CoreGossip <- load("/Users/joonghochoi/Desktop/Senior thesis work/Data-Josh/CoreGossip/15100Nynke.RData") 
+#the one with least NA. Do single dataset for now 
+vdb.CoreGossip
+```
+
+
+```{r}
+students<-c(strtoi(colnames(friendship[[1]])))
+df<-student_dataset[student_dataset$idcode %in% students,]
+academic<-df$k7_2_3h
+length(academic)
+academic1<-df$k7_2_5h
+academic[1:5]
+academic1[1:5]
+```
+
+```{r}
+friendshipPreProcess <- function (item){
+  #takes in friendship for all six waves and return preprocessed friendship
+  len<-length(item)
+  for (ii in 1:len){
+    intermediate<-item[[ii]]
+    k<-data.frame(intermediate)
+    k[k <4]<-0
+    k[k ==10]<-NA
+    k[k>=4]<-1
+    
+    k[is.na(k)]<-0
+    diag(k) <- 0
+    item[[ii]]<-k
+  }
+  item
+}
+```
+
+```{r}
+res<-friendshipPreProcess(friendship)
+for (ii in 1:6){
+  f1<-as.matrix(as.data.frame(res[1])) #wave 1
+  f2<-as.matrix(as.data.frame(res[2]))
+  f3<-as.matrix(as.data.frame(res[3]))
+  f4<-as.matrix(as.data.frame(res[4]))
+  f5<-as.matrix(as.data.frame(res[5]))
+  f6<-as.matrix(as.data.frame(res[6]))
+}
+```
+
+colSums(kk) to see the indegree of kk and rowSums(kk) to see the outdegree of kk
+
+
+```{r}
+#Use this chunk if don't want to make assumption that loners or ppl who didn't answer survey will remain the same
+
+IdentifyLoners <- function (mat){
+  i <- (colSums(mat, na.rm=T) != 0) # T if colSum is not 0, F otherwise
+  j <- (rowSums(mat, na.rm=T) != 0) # T if colSum is not 0, F otherwise
+  m<-c(i|j)
+  m1<-sapply(m, as.numeric)
+  m2<- which(m1 %in%0 )
+  m2
+}
+
+L4<-IdentifyLoners(f4)
+L5<-IdentifyLoners(f5)
+L6<-IdentifyLoners(f6)
+m2<-Reduce(intersect, list(L4,L5,L6))
+if (identical(m2, integer(0))){
+  f4_1<-f4
+  f5_1<-f5
+  f6_1<-f6
+}
+if (!identical(m2, integer(0))){
+  f4_1<-f4[-m2,-m2]
+  f5_1<-f5[-m2,-m2]
+  f6_1<-f6[-m2,-m2]
+}
+
+
+
+
+```
+
+
+```{r}
+#1 male, 2 female
+k2<-c(gender$gndr)
+if (!identical(m2, integer(0))){
+  k2<-k2[-m2]
+
+}
+sex<-coCovar(k2)
+sex
+```
+
+```{r}
+#sienadependent for friendship, 32x32x6
+#6 adjacent matrixes
+shape<-dim(f4_1)[1]
+friends <- sienaDependent(array(c(f4_1,f5_1,f6_1),dim=c(shape,shape,3)),allowOnly=FALSE)
+```
+
+```{r}
+#matrix where rows=student number and columns=time wave. Each box would show the average value of wellbeing 1-6. 
+interest<-c("k7_1_4h", "k7_1_5h","k7_1_6h")
+df_interest<-df[,interest]
+df_interest1<-df_interest
+if (!identical(m2, integer(0))){
+  df_interest1<-df_interest[-m2,]
+}
+df_interest1<-as.data.frame(df_interest1)
+```
+
+```{r}
+
+#Imputing NA with mean. Can disregard because RSiean can handle NA
+
+if (sum(is.na(df_interest1$k7_1_4h))!=0){
+  df_interest1[is.na(df_interest1$k7_1_4h),]$k7_1_4h<-mean(df_interest1$k7_1_4h,na.rm=TRUE)
+}
+if (sum(is.na(df_interest1$k7_1_5h))!=0){
+  df_interest1[is.na(df_interest1$k7_1_5h),]$k7_1_5h<-mean(df_interest1$k7_1_5h,na.rm=TRUE)
+}
+if (sum(is.na(df_interest1$k7_1_6h))!=0){
+  df_interest1[is.na(df_interest1$k7_1_6h),]$k7_1_6h<-mean(df_interest1$k7_1_6h,na.rm=TRUE)
+}
+```
+
+```{r}
+#res<-array(df_interest1)
+#res <- as(df_interest1, "sparseMatrix")
+df_interest1$k7_1_4h<-sapply(df_interest1$k7_1_4h, haven::as_factor)
+df_interest1$k7_1_5h<-sapply(df_interest1$k7_1_5h, haven::as_factor)
+df_interest1$k7_1_6h<-sapply(df_interest1$k7_1_6h, haven::as_factor)
+
+
+res<-list(as.matrix(df_interest1))
+#error: The first argument must not be a data.frame, but an array or a list of sparse matrices.
+meow<-res[[1]]
+meow<-as.data.frame(meow)
+meow[meow=="Highest grade (Excellent)"]<-5
+meow1<-data.matrix(meow)
+academicState <- sienaDependent(meow1-mean(meow1,na.rm=TRUE),type="behavior",allowOnly=FALSE) #not continuous cuz grades are integers. behavior=discrete
+
+```
+
+```{r}
+
+parents_care_grades4=df$k9_4h
+parents_care_grades5=df$k9_5h
+parents_care_grades6=df$k9_6h
+if (!identical(m2, integer(0))){
+
+  parents_care_grades4=df$k9_4h[-m2]
+  parents_care_grades5=df$k9_5h[-m2]
+  parents_care_grades6=df$k9_6h[-m2]
+}
+
+shape1=length(parents_care_grades4)
+parents_care_grades <- sienaDependent(array(c(parents_care_grades4,parents_care_grades5,parents_care_grades6),dim=c(shape1,3)), allowOnly=FALSE)
+#If Error: C stack usage  7969264 is too close to the limit, was able to resolve by changing allowOnly value
+
+```
+
+```{r}
+
+grade_popularity4=df$k16_1_4h
+grade_popularity5=df$k15_1_5h
+grade_popularity6=df$k16_1_6h
+if (!identical(m2, integer(0))){
+
+grade_popularity4=df$k16_1_4h[-m2]
+grade_popularity5=df$k15_1_5h[-m2]
+grade_popularity6=df$k16_1_6h[-m2]
+}
+
+shape2=length(grade_popularity4)
+grade_popularity <- sienaDependent(array(c(grade_popularity4,grade_popularity5,grade_popularity6),dim=c(shape2,3)), allowOnly=FALSE)
+```
+
+```{r}
+self_talentless4=df$k55_3_4h
+self_talentless5=df$k72_3_5h
+self_talentless6=df$k75_3_6h
+if (!identical(m2, integer(0))){
+  self_talentless4=df$k55_3_4h[-m2]
+self_talentless5=df$k72_3_5h[-m2]
+self_talentless6=df$k75_3_6h[-m2]
+}
+
+
+shape3=length(self_talentless4)
+self_talentless <- sienaDependent(array(c(self_talentless4,self_talentless5,self_talentless6),dim=c(shape3,3)), allowOnly=FALSE)
+```
+
+```{r}
+self_satisfaction4=df$k75_7_6h
+self_satisfaction5=df$k55_7_4h
+self_satisfaction6=df$k72_7_5h
+if (!identical(m2, integer(0))){
+  self_satisfaction4=df$k75_7_6h[-m2]
+self_satisfaction5=df$k55_7_4h[-m2]
+self_satisfaction6=df$k72_7_5h[-m2]
+}
+
+shape4=length(self_talentless4)
+self_satisfaction <- sienaDependent(array(c(self_satisfaction4,self_satisfaction5,self_satisfaction6),dim=c(shape4,3)), allowOnly=FALSE)
+```
+
+```{r}
+self_comparison4=df$k55_4_4h
+self_comparison5=df$k72_4_5h
+self_comparison6=df$k75_4_6h
+if (!identical(m2, integer(0))){
+  self_comparison4=df$k55_4_4h[-m2]
+self_comparison5=df$k72_4_5h[-m2]
+self_comparison6=df$k75_4_6h[-m2]
+}
+
+shape5=length(self_comparison4)
+self_comparison <- sienaDependent(array(c(self_comparison4,self_comparison5,self_comparison6),dim=c(shape5,3)), allowOnly=FALSE)
+```
+
+
+#RSiena paper: section on what effects to include? Not all. They have section where they recommend. Section 5.1+5.2 
+
+```{r}
+vdb<- sienaDataCreate(friends,sex,academicState,parents_care_grades,grade_popularity,self_talentless,self_satisfaction,self_comparison)
+```
+
+```{r}
+vdb.eff <- getEffects(vdb)
+vdb.eff <- includeEffects(vdb.eff, transTrip,sameXRecip,density,between,inPop,diffX,sameXRecip,effFrom,egoX) 
+
+#add in effects related to gender 
+
+#RateX:effect sex on rate,effect sex on rate academicState
+#diffX: sex difference
+#sameXRecip: same sex x reciprocity
+#egoX: sex ego
+
+#effFrom:academicState: effect from sex
+
+
+#,inActSqrt,outAct,outPop,inPop, avAlt,minXAlt,maxXAlt,isolate
+
+#effectsDocumentation(vdb.eff) to check what effects available
+
+#inRate:indegree effect on rate friends	
+#outRate:outdegree effect on rate friends
+#between	:betweenness effect, which represents brokerage: the tendency for actors to position themselves between not directly connected others
+#outRate:outdegree effect on rate friends	
+#sameXRecip: same sex x reciprocity
+#transtrip and transties likely result in colinearity. Shown by high rate parameters so only include one of the two
+#inactsqrt:indegree - activity (sqrt)	: tendencies for actors with high in-degrees to attract extra incoming ties ‘because’ of their high current in-degrees.
+#outAct: friends outdegree - activity: actors with high out-degrees to send out extra outgoing ties ‘because’ of their high current out-degrees. This also leads to dispersion in out-degrees of the actors
+#outPop/inpop:high out-degrees to attract extra incoming ties ‘because’ of their high current out-degrees. This leads to a higher correlation between in-degrees and out-degrees.
+
+
+#minXAlt:academicState: alter's (friends) sex minimum
+#avAlt:average alter for academic
+#maxXAltacademicState: alter's (friends) sex maximum
+#isolate:academicState in-isolate	
+vdb.eff
+```
+
+
+
+
+```{r}
+# Algorithm creation:
+vdb.algo <- sienaAlgorithmCreate(projname = 'Project_wave4to6', seed=123456)
+```
+
+```{r}
+set.seed(123)
+(ans0 <- siena07(vdb.algo, data=vdb, effects=vdb.eff,
+                                                    returnDeps=TRUE))
+```
+
+```{r}
+#(ans1 <- siena07(vdb.algo, data=vdb, effects=vdb.eff,prevAns=ans0))
+```
+There is no need to do this process again since overall maximum convergence ratio is less than 0.25
+
+------
+```{r}
+jaccard_index<-function(g1,g2) {
+  library(igraph)
+  g1<-get.adjacency(g1)
+  g1[g1 > 0.001] <- 1
+  g2<-get.adjacency(g2)
+  g2[g2 > 0.001] <- 1
+  A<-sum(g1 != g2) # edges that changed (0->1 and 1->0)
+  B<-sum(g1 * g2) # edges that have a 1 in M1 and 1 in M2, so stayed the same (1->1)
+  return(round(B/sum(A,B),digits = 2)) # the ratio of stable ties ties (B), compared to all ties who change (A) + stable ties (B)
+  on.exit(rm(A,B))
+}
+```
+
+
+```{r}
+
+g4<-graph_from_adjacency_matrix(f4_1)
+g5<-graph_from_adjacency_matrix(f5_1)
+g6<-graph_from_adjacency_matrix(f6_1)
+
+jaccard_index(g4,g5)
+jaccard_index(g5,g6)
+
+
+```
+#Rule of thumb:values that deviate
+#Absolute difference between values for academics between different wave. This wouldn't account for increase or decrease. 
+#Observe jaccard index value for each wave and see if 3->4 has more change. 
+
+#period 1(12.7), period 2(33.8),period 3(12.4), period 4(52.1)
+#3,4,5,6
+From the model's summary, we can see that the parameter value for the constant friends rate (waves 4 and 6) are extremely high. In order to understand the reason why, we examined the jaccard index value between graphs of each wave. The Jaccard Similarity Index is a measure of the similarity between two sets of data. The value ranges from 0 to 1 and the closer to 1, the more similar the two sets of data
+
+Analysis shows that jaccard_index is highest (0.64) between waves 3 and 4, and lowest (0.42) between waves 4 and 5.
+
+This suggests that there is another reason besides the change in friendship network that might be causing the high parameter value, meaning something changed drastically between waves 3 and 4, and waves 5 and 6
+
+The longitudinal research started in the autumn of 2013 among all fifth-grade students enrolled in the selected schools. Then, data were collected in the spring of 2014, the autumn of 2014, and in the spring months of 2015,2016, and 2017. Both waves 2->3 and 3->4 contain semester breaks. We would need to delver deeper into what happened over the winter break of 2014. 
+
+The potentiual reason behind high parameter rate value->not appropriate effect-> need to add in more effects
+#default: good standard of including. Not already included. 
+
+
+1) Examine the similarity between academic performance between each wave
+2) Add in more essential effects and important covariates to complete the model specification and see how they affect the rate parameter
+3 ) 
+
+
+#RSiena analysis: do EDA(univariate,bivariate) before throwing in new variables 
+
+-----1) Examine the similarity between academic performance between each wave
+
+```{r}
+
+academic_similarity<-function(a1,a2) 
+  {
+  len=length(a1)
+  loss=c()
+  count=0
+  for (ii in 1:len)
+    {
+    item=a1[ii]
+    item1=a2[ii]
+    if (item!=item1){
+      count=count+1
+    }
+    value=(as.numeric(item1)-as.numeric(item))
+    loss=c(loss,value)
+  }
+  #print(loss)
+  c(count,sum(loss)/len)
+  }
+
+academic_similarity(meow$k7_1_4h,meow$k7_1_5h)
+academic_similarity(meow$k7_1_5h,meow$k7_1_6h)
+
+```
+#Academically, the performance worsened in 3->4 and 5->6. Worth noting these are same waves where rate parameters are very high.
+#Shouldn't affect rate parameters anyway
+
+---From Dec 7th
+-Added new part to academic similarity function: how many changes occur in classmates. This is an important measure
+
