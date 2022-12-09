@@ -11,6 +11,8 @@ higher GPA does not alone lead to the improvement over time. Instead, we anticip
 that whether one grows through the benefit of being surrounded by intellectual
 talents depends on factors beyond grades, such as a student’s grade aspiration(Khattab, 2015) and parents’ opinion about the importance of grades(Yau et al., 2021). This is because we believe a student’s values and parents’ values would influence how the student would perceive one’s academic standing in the network and subsequently the resulting behaviour.
 
+-Social network analysis in R, network modelling via RSiena
+
 
 **11485(Intro to Deep Learning)**
 
