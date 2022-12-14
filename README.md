@@ -34,8 +34,10 @@ https://www.figma.com/file/TlYrIZh283mfZGoXZZYSCf/IxD---Data-Visualization?node-
 -Market research, design of responsive screens (web, tablet, phone, watch designs) via Figma and consultation for music instrument company in Pittsburgh.
 
 **36490 (Statistic Capstone)**
--2023 NFL Big Data Bowl 
+-Prepared a submission for 2023 NFL Big Data Bowl 
 
 https://www.kaggle.com/competitions/nfl-big-data-bowl-2023
+
+-Did a presentation for Michael Lopez, a senior Director of Football Data and Analytics at the National Football League(NFL), and received positive feedbacks. For example, he liked how we found frame is the most informative and liked the concept of frame ID modelling.
 
 
