@@ -34,6 +34,7 @@ https://www.figma.com/file/TlYrIZh283mfZGoXZZYSCf/IxD---Data-Visualization?node-
 -Market research, design of responsive screens (web, tablet, phone, watch designs) via Figma and consultation for music instrument company in Pittsburgh.
 
 **36490 (Statistic Capstone)**
+
 -Prepared a submission for 2023 NFL Big Data Bowl 
 
 https://www.kaggle.com/competitions/nfl-big-data-bowl-2023
